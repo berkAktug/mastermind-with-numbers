@@ -110,7 +110,6 @@ namespace mastermind_with_numbers
                         Console.WriteLine("Time limit exceeded.");
                         System.Environment.Exit(1);
                     }
-                    Console.WriteLine("time: {0}, initial:{1}, current:{2}", sw.ElapsedMilliseconds, initialCount, answers.Count);
 
                     if (bulls == answerSize)
                     {
