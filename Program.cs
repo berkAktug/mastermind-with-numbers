@@ -1,7 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Diagnostics;
 using System.Threading;
 
 namespace mastermind_with_numbers
@@ -51,8 +50,6 @@ namespace mastermind_with_numbers
         }
         static int Main(string[] args)
         {
-            Console.WriteLine("Bulls and Cows");
-
             string[] line = Console.ReadLine().Split(' ').ToArray();
 
             int.TryParse(line[0], out int upperLimit);
@@ -71,10 +68,12 @@ namespace mastermind_with_numbers
             answers = Permutations(answerSize, str).ToList();
 
             answers.RemoveAll(x => x.StartsWith("0"));
-            answers = Shuffle(answers).ToList();
+            if (answerSize >= 8 && upperLimit >= 8){
+                answers = Shuffle_Parallel(answers).ToList();
+            }else{
+                answers = Shuffle(answers).ToList();
+            }
 
-            Stopwatch sw = new Stopwatch();
-            TimeSpan ts = new TimeSpan();
             for (int turnCount = 0; answers.Count > 1; turnCount++)
             {
                 guess = answers[0];
@@ -84,25 +83,21 @@ namespace mastermind_with_numbers
                     Console.WriteLine("Please check your inputs.");
                 else
                 {
-                    sw.Restart();
-
-                    if (RunWithTimeout(AlgorithmLoop, TimeSpan.FromMilliseconds(maxTime * 10000)))
+                    if (RunWithTimeout(AlgorithmLoop, TimeSpan.FromMilliseconds(maxTime)))
                     {}
                     else
                     {
                         Console.WriteLine("Time Limit exceeded.");
-                        
+                        System.Environment.Exit(1);
                     }
                     if(bulls == answerSize){
                         return 0;
                     }
-                    sw.Stop();
-                    ts = sw.Elapsed;
                 }
                 if (turnCount > maxTurn)
                 {
                     Console.WriteLine("Turn limit exceeded.");
-                    return 3;
+                    System.Environment.Exit(1);
                 }
             }
             if (answers.Count == 1)
