@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
+using System.Collections.Concurrent;
 
 namespace mastermind_with_numbers
 {
@@ -14,6 +15,7 @@ namespace mastermind_with_numbers
         static int bulls;
         static int cows;
         static string guess;
+
         static IEnumerable<string> Permutations(int size, string str)
         {
             if (size > 0)
@@ -26,7 +28,6 @@ namespace mastermind_with_numbers
             else
                 yield return "";
         }
-
         static IEnumerable<T> Shuffle<T>(IEnumerable<T> enumerable)
         {
             var r = new Random();
@@ -51,7 +52,7 @@ namespace mastermind_with_numbers
                 return int.TryParse(input[0], out bulls)
                     && int.TryParse(input[1], out cows);
         }
-        static int Main(string[] args)
+        static void Main(string[] args)
         {
             string[] line = Console.ReadLine().Split(' ').ToArray();
 
@@ -60,8 +61,8 @@ namespace mastermind_with_numbers
             int.TryParse(line[2], out int maxTurn);
             long.TryParse(line[3], out long maxTime);
 
+            //answers = new ConcurrentDictionary<int, string>();
             answers = new List<string>();
-
             string str = "";
             for (int i = 0; i <= upperLimit; i++)
             {
@@ -78,12 +79,13 @@ namespace mastermind_with_numbers
             //}
             //else
             //{
-                answers = Shuffle(answers).ToList();
+            answers = Shuffle(answers).ToList();
             //}
 
             Thread.CurrentThread.Name = "Main";
             Stopwatch sw = new Stopwatch();
 
+            const int numParts = 10;
             for (int turnCount = 0; answers.Count > 1; turnCount++)
             {
                 if (turnCount > maxTurn)
@@ -95,6 +97,8 @@ namespace mastermind_with_numbers
                 guess = answers[0];
                 Console.Write(guess + " ");
 
+                //int bulls, cows;
+
                 if (!ReadBullsCows(out bulls, out cows))
                 {
                     Console.WriteLine("Please check your inputs.");
@@ -102,49 +106,41 @@ namespace mastermind_with_numbers
                 }
                 else
                 {
-                    sw.Restart();
-                    ProcessWithThreadPoolMethod();
-                    sw.Stop();
-                    if(sw.ElapsedMilliseconds > maxTime)
+                    if (answers.Count >= 10000)
                     {
-                        Console.WriteLine("Time limit exceeded.");
-                        System.Environment.Exit(1);
+                        Task<List<int>>[] answerParts = new Task<List<int>>[numParts];
+                        bool Completed = ExecuteWithTimeLimit(TimeSpan.FromMilliseconds(maxTime), () =>
+                        {
+                            for (int i = 0; i < numParts - 1; i++)
+                            {
+                                AlgorithmLoopAsync((answers.Count / 10) * i, (answers.Count / 10) * (i + 1));
+                            }
+                        });
+                        //var results = await Task.WhenAll(answerParts);
                     }
+                    else
+                    {
+                        bool Completed = ExecuteWithTimeLimit(TimeSpan.FromMilliseconds(maxTime), () =>
+                        {
+                            AlgorithmLoop();
+                        });
+                    }
+                    //Console.WriteLine("time: {0}, initial:{1}, current:{2}", sw.ElapsedMilliseconds, initialCount, answers.Count);
 
                     if (bulls == answerSize)
                     {
-                        return 0;
+                        Environment.Exit(0);
                     }
                 }
             }
             if (answers.Count == 1)
             {
                 Console.WriteLine("Hooray! The answer is {0}!", answers[0]);
-                return 0;
+                Environment.Exit(0);
             }
             else
                 Console.WriteLine("No possible answer fits the scores you gave.");
-            return 0;
-        }
-
-        static void ProcessWithThreadPoolMethod()
-        {
-            ThreadPool.QueueUserWorkItem(new WaitCallback(AlgorithmLoop));
-        }
-
-        static void AlgorithmLoop(object callback)
-        {
-            for (int a = 0; a < answers.Count - 1; a++)
-            {
-                int tmpBulls = 0, tmpCows = 0;
-                for (int ix = 0; ix < answerSize; ix++)
-                    if (answers[a][ix] == guess[ix])
-                        tmpBulls++;
-                    else if (answers[a].Contains(guess[ix]))
-                        tmpCows++;
-                if ((tmpBulls != bulls) || (tmpCows != cows))
-                    answers.RemoveAt(a);
-            }
+            Environment.Exit(0);
         }
 
         static void AlgorithmLoop()
@@ -158,7 +154,44 @@ namespace mastermind_with_numbers
                     else if (answers[a].Contains(guess[ix]))
                         tmpCows++;
                 if ((tmpBulls != bulls) || (tmpCows != cows))
+                {
                     answers.RemoveAt(a);
+                    //answers.Remove(a, out string dummy);
+                }
+            }
+        }
+        public static bool ExecuteWithTimeLimit(TimeSpan timeSpan, Action codeBlock)
+        {
+            try
+            {
+                Task task = Task.Factory.StartNew(() => codeBlock());
+                task.Wait(timeSpan);
+                return task.IsCompleted;
+            }
+            catch (AggregateException ae)
+            {
+                Console.WriteLine("Time limit exceeded.");
+                System.Environment.Exit(1);
+
+                throw ae.InnerExceptions[0];
+            }
+        }
+
+        static async void AlgorithmLoopAsync(int minimum, int maximum)
+        {
+            for (int ans = minimum; ans < maximum; ans++)
+            {
+                int tmpBulls = 0, tmpCows = 0;
+                for (int ix = 0; ix < answerSize; ix++)
+                    if (answers[ans][ix] == guess[ix])
+                        tmpBulls++;
+                    else if (answers[ans].Contains(guess[ix]))
+                        tmpCows++;
+                if ((tmpBulls != bulls) || (tmpCows != cows))
+                {
+                    answers.RemoveAt(ans);
+                    //answers.Remove(a, out string dummy);
+                }
             }
         }
     }
